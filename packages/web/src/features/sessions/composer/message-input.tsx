@@ -132,6 +132,25 @@ export function MessageInput({ wsSend }: ComposerProps) {
             if (!editor || isStreaming) return;
             const text = extractText(editor.getJSON());
             if (!text && attachments.length === 0) return;
+            // Add optimistic user message so it shows immediately.
+            // The REST re-fetch when streaming ends will replace it
+            // with the authoritative version (real JSONL entry ID).
+            if (activeHandle && text) {
+              const store = useSessionStore.getState();
+              const session = store.sessions[activeHandle];
+              const msgs = session?.messages ?? [];
+              store.setSession(activeHandle, {
+                messages: [
+                  ...msgs,
+                  {
+                    entryId: `optimistic:${crypto.randomUUID()}`,
+                    timestamp: new Date().toISOString(),
+                    role: "user" as const,
+                    content: text,
+                  },
+                ],
+              });
+            }
             wsSend({
               type: "session.prompt",
               sessionHandle: activeHandle,
@@ -174,6 +193,23 @@ export function MessageInput({ wsSend }: ComposerProps) {
     if (!editor || isStreaming) return;
     const text = extractText(editor.getJSON());
     if (!text && attachments.length === 0) return;
+    // Add optimistic user message (see inline send() for explanation)
+    if (activeHandle && text) {
+      const store = useSessionStore.getState();
+      const session = store.sessions[activeHandle];
+      const msgs = session?.messages ?? [];
+      store.setSession(activeHandle, {
+        messages: [
+          ...msgs,
+          {
+            entryId: `optimistic:${crypto.randomUUID()}`,
+            timestamp: new Date().toISOString(),
+            role: "user" as const,
+            content: text,
+          },
+        ],
+      });
+    }
     wsSend({
       type: "session.prompt",
       sessionHandle: activeHandle,
@@ -253,7 +289,7 @@ export function MessageInput({ wsSend }: ComposerProps) {
 
   return (
     <div className="border-t border-[var(--color-border-subtle)] bg-[var(--color-bg-primary)] px-4 pt-4 pb-1">
-      <div className="mx-auto w-full max-w-[var(--layout-content-max)]">
+      <div className="w-full max-w-[var(--layout-content-max)]">
         <input
           ref={fileInputRef}
           type="file"

@@ -15,9 +15,15 @@ async function rehydrateActiveSession() {
       fetchSessionState(activeSessionHandle),
       fetchSessionMessages(activeSessionHandle),
     ]);
+    // Deduplicate: WS events may have already pushed messages into the store
+    // while the REST rehydration was in flight
+    const existing = useSessionStore.getState().sessions[activeSessionHandle]?.messages ?? [];
+    const pageIds = new Set(page.items.map((m) => m.entryId));
+    // Keep REST items as authoritative, append any WS-only items not in the REST page
+    const wsOnly = existing.filter((m) => !pageIds.has(m.entryId));
     useSessionStore.getState().setSession(activeSessionHandle, {
       state,
-      messages: page.items,
+      messages: [...page.items, ...wsOnly],
       nextBeforeEntryId: page.nextBeforeEntryId,
       hasLoadedInitialPage: true,
       streamingDraft: undefined,

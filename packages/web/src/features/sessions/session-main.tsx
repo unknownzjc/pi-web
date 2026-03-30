@@ -54,9 +54,19 @@ export function SessionMain() {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col overflow-hidden">
       <SessionHeader />
-      <MessageTimeline />
+      {/* Messages area + bottom gradient mask */}
+      <div className="relative flex-1 overflow-hidden">
+        <MessageTimeline />
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-[150px]"
+          style={{
+            background:
+              "linear-gradient(to bottom, transparent 0%, var(--color-bg-primary) 100%)",
+          }}
+        />
+      </div>
       <Composer wsSend={wsSend} />
     </div>
   );

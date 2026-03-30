@@ -293,24 +293,27 @@ export class LocalRuntimeAdapter implements AgentRuntime {
   ): Promise<SessionMessagesPageDto> {
     const { sessionId } = this.parseHandle(input.sessionHandle);
     const active = this.lifecycle.get(sessionId);
-    if (active) {
-      const messages = active.agentSession.messages;
-      const items = messages.map((msg: any) => agentMessageToDto(msg));
-      return {
-        sessionHandle: input.sessionHandle,
-        items,
-      };
-    }
 
-    // For persisted (inactive) sessions, load from SDK's .jsonl file
-    const sessionPath = this.sessionIndex.get(sessionId);
+    // For both active and inactive sessions, read entries from the session
+    // manager to get stable entry IDs. This ensures REST and WS use the
+    // same IDs, enabling proper deduplication on the frontend.
+    const sessionPath = active
+      ? active.agentSession.sessionManager.getSessionFile()
+      : this.sessionIndex.get(sessionId);
+
     if (sessionPath && existsSync(sessionPath)) {
       try {
-        const sm = SessionManager.open(sessionPath);
+        const sm = active
+          ? active.agentSession.sessionManager
+          : SessionManager.open(sessionPath);
         const entries = sm.getEntries();
         const items = entries
           .filter((e: any) => e.type === "message")
-          .map((e: any) => agentMessageToDto(e.message));
+          .map((e: any) => {
+            const dto = agentMessageToDto(e.message);
+            dto.entryId = e.id; // Use stable JSONL entry ID
+            return dto;
+          });
         return {
           sessionHandle: input.sessionHandle,
           items,
@@ -523,38 +526,36 @@ export class LocalRuntimeAdapter implements AgentRuntime {
     const translatorState = createTranslatorState();
 
     const unsubscribeFromSdk = agentSession.subscribe((event) => {
-      const runtimeEvents = translateEvent(
-        event,
-        translatorState,
-        sessionHandle,
-        () => undefined,
-      );
+      // The SDK notifies listeners BEFORE persisting the message (appendMessage
+      // runs after _emit). Events that need stable JSONL entry IDs (message_end,
+      // tool_execution_end) must be deferred by one microtask so getLeafId()
+      // returns the ID of the just-persisted entry, not the previous one.
+      const needsEntryId =
+        event.type === "message_end" || event.type === "tool_execution_end";
 
-      for (const re of runtimeEvents) {
-        this.emit(re);
-      }
+      const processEvent = () => {
+        const runtimeEvents = translateEvent(
+          event,
+          translatorState,
+          sessionHandle,
+          () => agentSession.sessionManager.getLeafId() ?? undefined,
+        );
 
-      // Emit state updates on agent lifecycle transitions
-      if (event.type === "agent_start") {
-        this.emit({
-          type: "session.state",
-          sessionHandle,
-          state: {
-            sessionHandle,
-            isStreaming: true,
-            pendingToolCalls: [],
-          },
-        });
-      } else if (event.type === "agent_end") {
-        this.emit({
-          type: "session.state",
-          sessionHandle,
-          state: {
-            sessionHandle,
-            isStreaming: false,
-            pendingToolCalls: [],
-          },
-        });
+        for (const re of runtimeEvents) {
+          this.emit(re);
+        }
+
+        // Emit full state on agent lifecycle transitions so the frontend
+        // always has complete state (model, thinkingLevel, etc.)
+        if (event.type === "agent_start" || event.type === "agent_end") {
+          this.emitState(sessionId, sessionHandle);
+        }
+      };
+
+      if (needsEntryId) {
+        queueMicrotask(processEvent);
+      } else {
+        processEvent();
       }
     });
 

@@ -64,6 +64,7 @@ export interface SessionMessageDto {
     model?: string;
     provider?: string;
     thinking?: string;
+    toolArgs?: unknown;
   };
 }
 

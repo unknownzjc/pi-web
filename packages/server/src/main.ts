@@ -86,9 +86,11 @@ app.get(
       },
       onMessage(event) {
         if (typeof event.data === "string") {
-          deps.subscriptionService.handleClientMessage(event.data, client ?? undefined).catch((err) => {
-            console.error("WS message handler error:", err);
-          });
+          deps.subscriptionService
+            .handleClientMessage(event.data, client ?? undefined)
+            .catch((err) => {
+              console.error("WS message handler error:", err);
+            });
         }
       },
       onClose() {
@@ -101,13 +103,12 @@ app.get(
   }),
 );
 
-const port = Number(process.env.PORT ?? 3000);
+const port = Number(process.env.PORT ?? 3001);
 const host = process.env.HOST ?? "127.0.0.1";
 
-const server = serve(
-  { fetch: app.fetch, port, hostname: host },
-  (info) => {
-    console.log(`Pi Web Workbench listening on http://${info.address}:${info.port}`);
-  },
-);
+const server = serve({ fetch: app.fetch, port, hostname: host }, (info) => {
+  console.log(
+    `Pi Web Workbench listening on http://${info.address}:${info.port}`,
+  );
+});
 injectWebSocket(server);

@@ -1,6 +1,12 @@
 import { Icon } from "../../../components/ui/icon";
 import { Dropdown, DropdownItem } from "../../../components/ui/dropdown";
 
+interface ModelOption {
+  provider: string;
+  id: string;
+  name: string;
+}
+
 interface InputToolbarProps {
   disabled: boolean;
   streaming: boolean;
@@ -8,11 +14,35 @@ interface InputToolbarProps {
   onCancel: () => void;
   onAttach: () => void;
   currentModel?: { provider: string; id: string; displayName?: string };
-  availableModels: { provider: string; id: string; name: string }[];
+  availableModels: ModelOption[];
   onModelChange: (provider: string, modelId: string) => void;
   thinkingLevel?: string;
   availableThinkingLevels: string[];
   onThinkingLevelChange: (level: string) => void;
+}
+
+function formatProviderLabel(provider: string): string {
+  return provider
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((part) => part[0]?.toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function groupModelsByProvider(models: ModelOption[]) {
+  const groups = new Map<string, ModelOption[]>();
+
+  for (const model of models) {
+    const providerModels = groups.get(model.provider) ?? [];
+    providerModels.push(model);
+    groups.set(model.provider, providerModels);
+  }
+
+  return Array.from(groups.entries()).map(([provider, providerModels]) => ({
+    provider,
+    label: formatProviderLabel(provider),
+    models: providerModels,
+  }));
 }
 
 export function InputToolbar({
@@ -29,6 +59,7 @@ export function InputToolbar({
   onThinkingLevelChange,
 }: InputToolbarProps) {
   const showThinking = availableThinkingLevels.length > 0 && currentModel;
+  const groupedModels = groupModelsByProvider(availableModels);
 
   return (
     <div className="flex items-center gap-1 border-t border-[var(--color-border-subtle)] px-2 py-2 bg-[var(--color-bg-tertiary)]" role="toolbar">
@@ -59,25 +90,40 @@ export function InputToolbar({
             </div>
           }
         >
-          <div className="py-0.5">
-            {currentModel && (
-              <DropdownItem active>
-                {currentModel.displayName ?? currentModel.id}
-              </DropdownItem>
-            )}
-            {availableModels
-              .filter(
-                (m) =>
-                  m.provider !== currentModel.provider || m.id !== currentModel.id,
-              )
-              .map((m) => (
-                <DropdownItem
-                  key={`${m.provider}/${m.id}`}
-                  onClick={() => onModelChange(m.provider, m.id)}
-                >
-                  {m.name}
-                </DropdownItem>
-              ))}
+          <div className="py-1">
+            {groupedModels.map((group, groupIndex) => (
+              <div key={group.provider}>
+                {groupIndex > 0 && (
+                  <div className="mx-2 my-1 border-t border-[var(--color-border-subtle)]" />
+                )}
+                <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
+                  {group.label}
+                </div>
+                {group.models.map((model) => {
+                  const isActive =
+                    model.provider === currentModel.provider &&
+                    model.id === currentModel.id;
+
+                  return (
+                    <DropdownItem
+                      key={`${model.provider}/${model.id}`}
+                      active={isActive}
+                      disabled={isActive}
+                      onClick={() => onModelChange(model.provider, model.id)}
+                    >
+                      <div className="flex min-w-0 flex-col">
+                        <span className="truncate">{model.name}</span>
+                        {model.name !== model.id && (
+                          <span className="truncate text-[10px] text-current/70">
+                            {model.id}
+                          </span>
+                        )}
+                      </div>
+                    </DropdownItem>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </Dropdown>
       )}

@@ -75,7 +75,14 @@ export function routeWsEvent(event: ServerWsEvent): void {
   switch (type) {
     case "session.state": {
       const e = event as SessionStateEvent;
-      store.setSession(sessionHandle, { state: e.state });
+      const patch: Record<string, unknown> = { state: e.state };
+      // Clear drafts when streaming ends to prevent stale tool results
+      // from accumulating across turns
+      if (!e.state.isStreaming) {
+        patch.toolDrafts = [];
+        patch.streamingDraft = undefined;
+      }
+      store.setSession(sessionHandle, patch);
       break;
     }
 
@@ -102,9 +109,14 @@ export function routeWsEvent(event: ServerWsEvent): void {
       const messages = session?.messages ?? [];
       // Remove any existing message with same entryId (dedup by message.entryId)
       const filtered = messages.filter((m) => m.entryId !== e.message.entryId);
+      // Clear completed tool drafts when a final assistant message arrives
+      const toolDrafts = (session?.toolDrafts ?? []).filter(
+        (t) => t.status !== "done",
+      );
       store.setSession(sessionHandle, {
         messages: [...filtered, e.message],
         streamingDraft: undefined,
+        toolDrafts,
       });
       break;
     }
@@ -145,16 +157,25 @@ export function routeWsEvent(event: ServerWsEvent): void {
       const e = event as ToolFinishedEvent;
       const session = store.sessions[sessionHandle];
       const existing = session?.toolDrafts ?? [];
-      const updatedDrafts = existing.map((t) =>
-        t.toolCallId === e.toolCallId
-          ? { ...t, status: "done" as const, entryId: e.entryId }
-          : t,
-      );
-      // If the tool finished with a message, add it to messages
       const messages = session?.messages ?? [];
-      const newMessages = e.message
-        ? [...messages.filter((m) => m.entryId !== e.message!.entryId), e.message]
-        : messages;
+
+      let updatedDrafts;
+      let newMessages;
+
+      if (e.message) {
+        // Tool result persisted as a message — remove the draft to avoid duplicates
+        updatedDrafts = existing.filter((t) => t.toolCallId !== e.toolCallId);
+        newMessages = [...messages.filter((m) => m.entryId !== e.message!.entryId), e.message];
+      } else {
+        // No message; keep the draft as done
+        updatedDrafts = existing.map((t) =>
+          t.toolCallId === e.toolCallId
+            ? { ...t, status: "done" as const, entryId: e.entryId }
+            : t,
+        );
+        newMessages = messages;
+      }
+
       store.setSession(sessionHandle, {
         toolDrafts: updatedDrafts,
         messages: newMessages,

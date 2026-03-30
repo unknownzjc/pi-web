@@ -30,6 +30,12 @@
   --color-warning: #fbbf24;
   --color-error: #f87171;
 
+  /* Diff */
+  --color-diff-add-fg: #74c991;
+  --color-diff-add-bg: rgba(116, 201, 145, 0.1);
+  --color-diff-del-fg: #c74e39;
+  --color-diff-del-bg: rgba(199, 78, 57, 0.1);
+
   /* Spacing */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
@@ -112,6 +118,109 @@ body {
   color: var(--color-text-tertiary);
   pointer-events: none;
   height: 0;
+}
+
+/* ── Timeline animations ── */
+
+@keyframes timeline-dot-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* ── Content clamp (collapsible long content) ── */
+
+.content-clamp {
+  max-height: 60px;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 40px, transparent 60px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 40px, transparent 60px);
+  transition: max-height 0.3s ease-in-out;
+}
+
+/* ── Markdown prose styles ── */
+
+.markdown-root {
+  text-wrap: auto;
+  overflow-x: hidden;
+  width: 100%;
+}
+
+.markdown-root p {
+  white-space: pre-wrap;
+  margin-top: 0.1em;
+  margin-bottom: 0.2em;
+}
+
+.markdown-root ul,
+.markdown-root ol {
+  padding-inline-start: 2em;
+  margin-bottom: 0.75em;
+}
+
+.markdown-root li {
+  margin-bottom: 0.25em;
+}
+
+.markdown-root pre {
+  position: relative;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-primary);
+  padding: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-x: auto;
+  white-space: pre;
+  margin: 8px 0;
+}
+
+.markdown-root code {
+  border-radius: 3px;
+  background: var(--color-bg-primary);
+  padding: 2px 4px;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  word-break: break-word;
+}
+
+.markdown-root pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+
+.markdown-root table {
+  border-collapse: collapse;
+  border: 1px solid var(--color-border-subtle);
+  margin: 8px 0;
+}
+
+.markdown-root th,
+.markdown-root td {
+  border: 1px solid var(--color-border-subtle);
+  padding: 2px 6px;
+}
+
+.markdown-root th {
+  background: var(--color-bg-tertiary);
+  font-weight: 600;
+}
+
+.markdown-root a {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+}
+
+.markdown-root blockquote {
+  border-left: 3px solid var(--color-border);
+  padding-left: 12px;
+  margin: 8px 0;
+  color: var(--color-text-secondary);
 }
 
 /* Gradient border - composer input */

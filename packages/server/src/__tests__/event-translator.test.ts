@@ -244,7 +244,7 @@ describe("event-translator", () => {
       expect(state.streamingMessageId).toBeNull();
     });
 
-    it("produces no events for user messages", () => {
+    it("produces no events for user messages (handled optimistically by client)", () => {
       const events = translate(
         { type: "message_end", message: mockUserMessage() },
       );
@@ -312,7 +312,7 @@ describe("event-translator", () => {
   });
 
   describe("tool_execution_end", () => {
-    it("produces session.tool_finished", () => {
+    it("produces session.tool_finished with tool result message", () => {
       const events = translate(
         {
           type: "tool_execution_end",
@@ -326,13 +326,55 @@ describe("event-translator", () => {
       );
 
       expect(events).toHaveLength(1);
-      expect(events[0]).toEqual({
-        type: "session.tool_finished",
-        sessionHandle: HANDLE,
-        toolCallId: "tc-1",
-        toolName: "read",
-        entryId: "entry-tool-1",
-      });
+      const finished = events[0] as Extract<
+        RuntimeEvent,
+        { type: "session.tool_finished" }
+      >;
+      expect(finished.type).toBe("session.tool_finished");
+      expect(finished.sessionHandle).toBe(HANDLE);
+      expect(finished.toolCallId).toBe("tc-1");
+      expect(finished.toolName).toBe("read");
+      expect(finished.entryId).toBe("entry-tool-1");
+      // Verify the tool result message is included
+      expect(finished.message).toBeDefined();
+      expect(finished.message!.role).toBe("toolResult");
+      expect(finished.message!.content).toBe("file contents");
+      expect(finished.message!.meta?.toolName).toBe("read");
+      expect(finished.message!.meta?.toolCallId).toBe("tc-1");
+      expect(finished.message!.meta?.isError).toBe(false);
+    });
+
+    it("includes tool args from tool_execution_start in result message", () => {
+      const state = createTranslatorState();
+      // First emit tool_execution_start to save args
+      translate(
+        {
+          type: "tool_execution_start",
+          toolCallId: "tc-2",
+          toolName: "read",
+          args: { path: "/foo.ts" },
+        },
+        state,
+      );
+      // Then emit tool_execution_end
+      const events = translate(
+        {
+          type: "tool_execution_end",
+          toolCallId: "tc-2",
+          toolName: "read",
+          result: "file contents",
+          isError: false,
+        },
+        state,
+        () => "entry-tool-2",
+      );
+
+      expect(events).toHaveLength(1);
+      const finished = events[0] as Extract<
+        RuntimeEvent,
+        { type: "session.tool_finished" }
+      >;
+      expect(finished.message?.meta?.toolArgs).toEqual({ path: "/foo.ts" });
     });
 
     it("omits entryId when getEntryId returns undefined", () => {
@@ -354,6 +396,9 @@ describe("event-translator", () => {
         { type: "session.tool_finished" }
       >;
       expect(finished.entryId).toBeUndefined();
+      // message should still be present with a generated entryId
+      expect(finished.message).toBeDefined();
+      expect(finished.message!.entryId).toBeTruthy();
     });
   });
 
