@@ -13,7 +13,74 @@ export interface BrowseResult {
   entries: DirEntry[];
 }
 
+export interface SearchEntry {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+}
+
 export class FilesystemService {
+  searchFiles(cwd: string, query: string, maxResults = 15): SearchEntry[] {
+    const canonicalCwd = realpathSync(resolve(cwd));
+
+    let searchDir: string;
+    let prefix: string;
+
+    if (query.includes("/")) {
+      const lastSlash = query.lastIndexOf("/");
+      const dirPart = query.slice(0, lastSlash + 1);
+      prefix = query.slice(lastSlash + 1);
+      searchDir = resolve(canonicalCwd, dirPart);
+    } else {
+      searchDir = canonicalCwd;
+      prefix = query;
+    }
+
+    // Security: ensure resolved path is within cwd
+    let resolvedDir: string;
+    try {
+      resolvedDir = realpathSync(searchDir);
+    } catch {
+      return [];
+    }
+    if (!resolvedDir.startsWith(canonicalCwd)) {
+      return [];
+    }
+
+    let dirents;
+    try {
+      dirents = readdirSync(resolvedDir, { withFileTypes: true });
+    } catch {
+      return [];
+    }
+
+    const showHidden = prefix.startsWith(".");
+    const relativeDirPrefix =
+      resolvedDir === canonicalCwd
+        ? ""
+        : resolvedDir.slice(canonicalCwd.length + 1) + "/";
+
+    const entries: SearchEntry[] = dirents
+      .filter((d) => {
+        if (!showHidden && d.name.startsWith(".")) return false;
+        if (prefix && !d.name.toLowerCase().startsWith(prefix.toLowerCase()))
+          return false;
+        return d.isDirectory() || d.isFile();
+      })
+      .map((d) => ({
+        name: d.isDirectory() ? d.name + "/" : d.name,
+        path: relativeDirPrefix + (d.isDirectory() ? d.name + "/" : d.name),
+        isDirectory: d.isDirectory(),
+      }))
+      .sort((a, b) => {
+        if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      })
+      .slice(0, maxResults);
+
+    return entries;
+  }
+
   browse(inputPath?: string): BrowseResult {
     const raw = inputPath?.trim();
 

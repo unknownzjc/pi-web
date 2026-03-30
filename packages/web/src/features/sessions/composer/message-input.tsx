@@ -11,6 +11,8 @@ import { abortSession } from "../../../api/sessions";
 
 import type { ImageAttachment } from "./image-paste-extension";
 import { createImagePasteExtension } from "./image-paste-extension";
+import { createMentionExtension } from "./mention-extension";
+import { extractText } from "./extract-text";
 import { GradientBorderWrapper } from "./gradient-border-wrapper";
 import { AttachmentPreview } from "./attachment-preview";
 import { InputToolbar } from "./input-toolbar";
@@ -21,6 +23,9 @@ interface ComposerProps {
 
 export function MessageInput({ wsSend }: ComposerProps) {
   const activeHandle = useAppStore((s) => s.activeSessionHandle);
+  const workspaces = useAppStore((s) => s.workspaces);
+  const selectedWorkspaceId = useAppStore((s) => s.selectedWorkspaceId);
+  const cwd = workspaces.find((w) => w.workspaceId === selectedWorkspaceId)?.path;
   const sessionState = useSessionStore(
     (s) => (activeHandle ? s.sessions[activeHandle]?.state : undefined),
   );
@@ -50,6 +55,13 @@ export function MessageInput({ wsSend }: ComposerProps) {
     [addAttachments],
   );
 
+  const cwdRef = useRef(cwd);
+  cwdRef.current = cwd;
+  const mentionExtension = useMemo(
+    () => createMentionExtension(() => cwdRef.current),
+    [],
+  );
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -69,6 +81,7 @@ export function MessageInput({ wsSend }: ComposerProps) {
           disabled ? "Select a session to start..." : "Message Pi...",
       }),
       imagePasteExtension,
+      mentionExtension,
       Extension.create({
         name: "chatKeymap",
         addProseMirrorPlugins() {
@@ -117,7 +130,7 @@ export function MessageInput({ wsSend }: ComposerProps) {
 
           function send() {
             if (!editor || isStreaming) return;
-            const text = editor.getText().trim();
+            const text = extractText(editor.getJSON());
             if (!text && attachments.length === 0) return;
             wsSend({
               type: "session.prompt",
@@ -159,7 +172,7 @@ export function MessageInput({ wsSend }: ComposerProps) {
 
   const handleSend = useCallback(() => {
     if (!editor || isStreaming) return;
-    const text = editor.getText().trim();
+    const text = extractText(editor.getJSON());
     if (!text && attachments.length === 0) return;
     wsSend({
       type: "session.prompt",
