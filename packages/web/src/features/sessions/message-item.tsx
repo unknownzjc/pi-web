@@ -34,7 +34,7 @@ export function UserMessage({ message }: { message: SessionMessageDto }) {
         ].join(", "),
       }}
     >
-      <div className="relative max-w-[33%]">
+      <div className="relative">
         <div
           ref={contentRef}
           className={clsx(

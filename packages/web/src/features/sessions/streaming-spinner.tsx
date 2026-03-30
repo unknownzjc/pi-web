@@ -131,7 +131,7 @@ export function StreamingSpinner() {
   const symbol = SYMBOLS[symbolIndex];
 
   return (
-    <div className="relative flex items-center pl-[30px] py-2 h-[1.85em] mt-1">
+    <div className="relative py-2 pl-[30px]">
       {/* Vertical line */}
       <div className="absolute left-[12px] top-0 bottom-0 w-px bg-[var(--color-border-subtle)]" />
       {/* Animated dot */}

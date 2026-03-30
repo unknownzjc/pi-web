@@ -33,6 +33,10 @@ export function MessageInput({ wsSend }: ComposerProps) {
 
   const [attachments, setAttachments] = useState<ImageAttachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const attachmentsRef = useRef(attachments);
+  attachmentsRef.current = attachments;
+  const wsSendRef = useRef(wsSend);
+  wsSendRef.current = wsSend;
 
   const isStreaming = sessionState?.isStreaming ?? false;
   const disabled = !activeHandle;
@@ -129,17 +133,25 @@ export function MessageInput({ wsSend }: ComposerProps) {
           ];
 
           function send() {
-            if (!editor || isStreaming) return;
+            // Read latest values from store/refs to avoid stale closures
+            const currentHandle = useAppStore.getState().activeSessionHandle;
+            const currentSessionState = currentHandle
+              ? useSessionStore.getState().sessions[currentHandle]?.state
+              : undefined;
+            const currentIsStreaming = currentSessionState?.isStreaming ?? false;
+            const currentAttachments = attachmentsRef.current;
+
+            if (!editor || currentIsStreaming) return;
             const text = extractText(editor.getJSON());
-            if (!text && attachments.length === 0) return;
+            if (!text && currentAttachments.length === 0) return;
             // Add optimistic user message so it shows immediately.
             // The REST re-fetch when streaming ends will replace it
             // with the authoritative version (real JSONL entry ID).
-            if (activeHandle && text) {
+            if (currentHandle && text) {
               const store = useSessionStore.getState();
-              const session = store.sessions[activeHandle];
+              const session = store.sessions[currentHandle];
               const msgs = session?.messages ?? [];
-              store.setSession(activeHandle, {
+              store.setSession(currentHandle, {
                 messages: [
                   ...msgs,
                   {
@@ -151,12 +163,12 @@ export function MessageInput({ wsSend }: ComposerProps) {
                 ],
               });
             }
-            wsSend({
+            wsSendRef.current({
               type: "session.prompt",
-              sessionHandle: activeHandle,
+              sessionHandle: currentHandle,
               text,
             });
-            if (attachments.length > 0) {
+            if (currentAttachments.length > 0) {
               console.warn(
                 "[composer] Image attachments are not yet supported by the backend. Sending text only.",
               );

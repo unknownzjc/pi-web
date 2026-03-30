@@ -60,10 +60,10 @@ export function SessionMain() {
       <div className="relative flex-1 overflow-hidden">
         <MessageTimeline />
         <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-[150px]"
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-[100px]"
           style={{
             background:
-              "linear-gradient(to bottom, transparent 0%, var(--color-bg-primary) 100%)",
+              "linear-gradient(to bottom, transparent 40%, var(--color-bg-primary) 100%)",
           }}
         />
       </div>
